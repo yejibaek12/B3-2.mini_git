@@ -4,6 +4,22 @@ Mini Git은 커밋 그래프(DAG), 브랜치 제어, 위상 정렬 기반 로그
 
 ---
 
+## 프로젝트 구조 및 소스 코드 구성
+
+이 프로젝트는 로컬 설계 문서를 제외하고 배포에 필요한 모든 기능적 핵심 로직이 단 하나의 파일인 **`main.py`**에 통합적으로 구현되어 있어 간편하게 실행할 수 있습니다.
+
+* **`main.py`** 내부 소스 코드 구성:
+  * **SECTION 1. UTILS & HELPER ALGORITHMS**: 정렬 제약을 해결하기 위해 직접 구현한 Stable $O(N \log N)$ 병합 정렬(`merge_sort`).
+  * **SECTION 2. DATA MODELS**: Git의 개별 커밋 노드를 설계한 `CommitNode` 클래스.
+  * **SECTION 3. CORE ENGINE (Repository)**:
+    * **3-1/3-2. Command Handlers**: 저장소 초기화 및 `INIT`, `BRANCH`, `SWITCH`, `COMMIT` 등의 브랜치 제어 메서드.
+    * **3-3. Search Engine**: 딕셔너리와 집합(Set)을 활용한 고속 인메모리 역색인 검색기.
+    * **3-4/3-5. Graph Algorithms**: 위상 정렬 기반 `LOG` 조회, 무방향 BFS 탐색을 통한 `PATH` 추적, DFS 기반의 `ANCESTORS` 조상 조회 및 브랜치 `MERGE`.
+  * **SECTION 4. BONUS UTILITIES**: 최장 공통 부분 수열(LCS) 동적 계획법(DP)을 활용해 두 텍스트 파일 간의 차이점을 줄 단위로 분석하는 `DIFF` 유틸리티.
+  * **SECTION 5. INTERACTIVE CONSOLE (REPL)**: 예외 처리와 명령어 토크나이저(`shlex`)가 적용된 `mini-git>` 대화형 셸 콘솔 메인 루프.
+
+---
+
 ## 주요 기능
 
 1. **저장소 및 브랜치 관리**:
@@ -82,3 +98,4 @@ Mini Git은 커밋 그래프(DAG), 브랜치 제어, 위상 정렬 기반 로그
   ```bash
   python main.py
   ```
+
