@@ -12,6 +12,11 @@ def merge_sort(arr, key=lambda x: x):
     """
     Sorts a list using the merge sort algorithm.
     Guarantees O(N log N) time complexity and stability.
+    
+    [Complexity Analysis]
+    - Time Complexity: O(N log N) in all cases (best, average, worst).
+    - Space Complexity: O(N) auxiliary space. Unlike Quick Sort, Merge Sort requires 
+      an additional temporary list to merge the sorted sub-lists together.
     """
     if len(arr) <= 1:
         return arr
@@ -45,12 +50,13 @@ def merge(left, right, key):
 class CommitNode:
     """
     Represents a commit node in the version control graph.
+    Acts as a vertex in the Directed Acyclic Graph (DAG) representing the commit history.
     """
     def __init__(self, commit_hash, message, author, parents, branch, timestamp=None):
         self.hash = commit_hash
         self.message = message
         self.author = author
-        self.parents = parents  # List of parent commit hashes
+        self.parents = parents  # List of parent commit hashes (directed edges pointing backwards)
         self.branch = branch    # The active branch when this commit was made
         if timestamp:
             self.timestamp = timestamp
@@ -65,6 +71,13 @@ class CommitNode:
 class Repository:
     """
     Manages the repository state, branch pointers, commit graph, and indexes.
+    
+    [State Variable Responsibility]
+    - `is_initialized`: Tracks if the repository is initialized via 'INIT'.
+    - `current_user`: Tracks the current user name (commit author).
+    - `commits`: Dict mapping commit hashes to CommitNode objects (the DAG nodes).
+    - `branches`: Dict mapping branch names to commit hashes (points to the branch tip/latest commit).
+    - `head`: String tracking the active branch name (points to a key in the branches dict).
     """
     
     # ---------------------------------------------------------
@@ -75,7 +88,7 @@ class Repository:
         self.current_user = None
         self.commits = {}           # Mapping of commit_hash -> CommitNode
         self.branches = {}          # Mapping of branch_name -> commit_hash (pointing to tip)
-        self.head = 'main'          # Current active branch name
+        self.head = 'main'          # Current active branch name (HEAD pointer)
         self.keyword_index = {}     # Inverted index for keywords: term -> list of hashes
         self.author_index = {}      # Inverted index for authors: author_name -> list of hashes
         self.commit_counter = 0     # For sequential, non-duplicate hash generation
@@ -83,6 +96,7 @@ class Repository:
     def generate_hash(self):
         """
         Generates a non-duplicating hash mimicking the 'a1b2c3', 'd4e5f6', 'g7h8i9' pattern.
+        This provides deterministic hashes which is highly useful for testing and reproducibility.
         """
         c = self.commit_counter
         self.commit_counter += 1
@@ -95,17 +109,40 @@ class Repository:
         return f"{char1}{num1}{char2}{num2}{char3}{num3}"
 
     # ---------------------------------------------------------
+    # 3-1-Helper. Common Graph Adjacency List Builder
+    # ---------------------------------------------------------
+    def _build_adjacency_list(self, undirected=True):
+        """
+        Builds and returns the adjacency list of the commit graph from self.commits.
+        This is a shared helper to promote code reusability across LOG, PATH, and graph traversals.
+        
+        - If undirected is True: Creates undirected edges between parent and child (for BFS distance).
+        - If undirected is False: Creates directed edges pointing from parent to child (forward topological flow).
+        """
+        adj = {h: set() for h in self.commits}
+        for h, node in self.commits.items():
+            for p in node.parents:
+                if p in self.commits:
+                    if undirected:
+                        adj[h].add(p)
+                        adj[p].add(h)
+                    else:
+                        adj[p].add(h)  # Parent points to child (forward edge)
+        return adj
+
+    # ---------------------------------------------------------
     # 3-2. Version Control Command Handlers
     # ---------------------------------------------------------
     def init(self, user_name):
         """
         Initializes the repository with the specified user name and creates 'main' branch.
+        WARNING: Calling INIT on an already initialized repository will reset all commits and indexes.
         """
         self.is_initialized = True
         self.current_user = user_name
         self.commits = {}
         self.branches = {'main': None}
-        self.head = 'main'
+        self.head = 'main'          # Reset HEAD pointer to point to 'main' branch
         self.keyword_index = {}
         self.author_index = {}
         self.commit_counter = 0
@@ -116,6 +153,7 @@ class Repository:
     def branch(self, branch_name):
         """
         Creates a new branch pointer pointing to the current commit of the active branch.
+        Updates self.branches mapping.
         """
         if branch_name in self.branches:
             print(f"Branch already exists: {branch_name}")
@@ -128,16 +166,18 @@ class Repository:
     def switch(self, branch_name):
         """
         Switches the current active branch (HEAD) to the specified branch.
+        Updates self.head pointer.
         """
         if branch_name not in self.branches:
             print(f"Unknown branch: {branch_name}")
             return
-        self.head = branch_name
+        self.head = branch_name     # Switch active branch pointer
         print(f"Switched to branch: {branch_name}")
 
     def commit(self, message, parents=None):
         """
         Creates a new commit, updates the active branch tip, and builds the inverted indexes.
+        Responsibility: Progresses the branch tip pointer in self.branches and adds the commit node.
         """
         commit_hash = self.generate_hash()
         
@@ -153,16 +193,16 @@ class Repository:
             branch=self.head
         )
         self.commits[commit_hash] = node
-        self.branches[self.head] = commit_hash
+        self.branches[self.head] = commit_hash  # Move the active branch tip pointer forward
 
-        # Update keyword index
+        # Update keyword index (case-insensitive words mapping)
         words = message.lower().split()
         for term in set(words):
             if term not in self.keyword_index:
                 self.keyword_index[term] = []
             self.keyword_index[term].append(commit_hash)
 
-        # Update author index
+        # Update author index (case-insensitive author mapping)
         author_key = self.current_user.lower()
         if author_key not in self.author_index:
             self.author_index[author_key] = []
@@ -212,28 +252,32 @@ class Repository:
             return
 
         if sort_by is None:
-            # Topological sort using Kahn's algorithm
+            # Reusable Graph Builder: Build directed forward adjacency list (parent -> children)
+            children = self._build_adjacency_list(undirected=False)
+            
+            # Compute in-degrees based on the child relationships in the commits
             in_degree = {h: 0 for h in self.commits}
-            children = {h: [] for h in self.commits}
             for h, node in self.commits.items():
                 for p in node.parents:
                     if p in self.commits:
-                        children[p].append(h)
                         in_degree[h] += 1
 
-            # Get root commits
+            # Get root commits (commits with no parents in the current set)
             roots = [h for h in self.commits if in_degree[h] == 0]
-            # Deterministic queue ordering
+            
+            # Queue initialization with custom sorting (timestamp first, then hash alphabetically for tie-breaks)
+            # Tie-break rule ensures deterministic output for multi-parent merge commits or parallel branches.
             queue = merge_sort(roots, key=lambda h: (self.commits[h].timestamp, h))
 
             result = []
             while queue:
-                curr = queue.pop(0)
+                curr = queue.pop(0)  # Dequeue next commit node in topological order
                 result.append(curr)
                 for child in children[curr]:
                     in_degree[child] -= 1
                     if in_degree[child] == 0:
                         queue.append(child)
+                # Re-sort the active queue to maintain deterministic order when multiple branches are processed
                 queue = merge_sort(queue, key=lambda h: (self.commits[h].timestamp, h))
 
             for h in result:
@@ -257,7 +301,7 @@ class Repository:
     def path(self, commit1, commit2):
         """
         Finds the shortest path between two commits considering commit connections as undirected.
-        Tie-breaker: choose the lexicographically smallest path representation.
+        Tie-breaker: choose the lexicographically smallest path representation (e.g. 'a1 -> b1' vs 'a1 -> b2').
         """
         if commit1 not in self.commits:
             print(f"Unknown commit: {commit1}")
@@ -270,15 +314,10 @@ class Repository:
             print(f"Path: {commit1}")
             return
 
-        # Build undirected graph adjacency list
-        adj = {h: set() for h in self.commits}
-        for h, node in self.commits.items():
-            for p in node.parents:
-                if p in self.commits:
-                    adj[h].add(p)
-                    adj[p].add(h)
+        # Reusable Graph Builder: Build undirected graph adjacency list
+        adj = self._build_adjacency_list(undirected=True)
 
-        # BFS to find the shortest path
+        # BFS to find the shortest path (queue tracks the path taken)
         queue = deque([[commit1]])
         visited = {commit1: 0}  # map node -> min path length to reach it
         shortest_paths = []
@@ -288,6 +327,7 @@ class Repository:
             path = queue.popleft()
             curr = path[-1]
 
+            # Stop scanning deeper if we exceed the length of the shortest path found
             if shortest_length is not None and len(path) > shortest_length:
                 break
 
@@ -296,9 +336,11 @@ class Repository:
                 shortest_paths.append(path)
                 continue
 
+            # Deterministically visit neighbors in sorted order (stable path generation)
             sorted_neighbors = merge_sort(list(adj[curr]), key=lambda x: x)
             for neighbor in sorted_neighbors:
                 new_dist = len(path)
+                # Keep tracking path if it's the first time visiting or matching the shortest distance
                 if neighbor not in visited or visited[neighbor] >= new_dist:
                     visited[neighbor] = new_dist
                     queue.append(path + [neighbor])
@@ -312,7 +354,7 @@ class Repository:
             path_str = " -> ".join(p)
             path_strings.append((path_str, p))
 
-        # Tie-breaker logic (choose lexicographically smallest string)
+        # Tie-breaker logic (choose lexicographically smallest string representation)
         best_path_str, best_path = path_strings[0]
         for p_str, p in path_strings[1:]:
             if p_str < best_path_str:
@@ -332,12 +374,15 @@ class Repository:
         visited = set()
         stack = []
         start_node = self.commits[commit_hash]
+        
+        # Populate stack with parent commit hashes (ancestors)
         for p in start_node.parents:
             if p in self.commits and p not in visited:
                 visited.add(p)
                 stack.append(p)
 
         ancestor_list = []
+        # DFS traversal loop to fetch all historical parent nodes recursively
         while stack:
             curr = stack.pop()
             ancestor_list.append(curr)
@@ -351,7 +396,7 @@ class Repository:
             print("Ancestors: None")
             return
 
-        # Sort ancestors chronologically (by timestamp, then hash)
+        # Sort ancestors chronologically (by timestamp, then hash alphabetically)
         sorted_ancestors = merge_sort(ancestor_list, key=lambda h: (self.commits[h].timestamp, h))
         print("Ancestors:")
         for h in sorted_ancestors:
@@ -385,7 +430,7 @@ class Repository:
             print("Already up to date.")
             return
 
-        # Create merge commit
+        # Create merge commit with two parents (parent1 = current HEAD tip, parent2 = target branch tip)
         msg = f"Merge branch '{branch_name}' into {self.head}"
         parents = [parent1, parent2]
         self.commit(message=msg, parents=parents)
@@ -425,7 +470,7 @@ def diff_command(file1, file2):
             else:
                 dp[i][j] = max(dp[i-1][j], dp[i][j-1])
 
-    # Backtracking to reconstruct the diff
+    # Backtracking to reconstruct the diff (longest common subsequence DP matrix traversal)
     i, j = m, n
     diff = []
     while i > 0 or j > 0:
@@ -458,7 +503,7 @@ def main():
             if not line:
                 continue
 
-            # Command line tokenization supporting double quotes
+            # Command line tokenization supporting double quotes via shlex
             try:
                 tokens = shlex.split(line)
             except ValueError:
@@ -519,6 +564,7 @@ def main():
                         print("Repository not initialized")
                     else:
                         part = args[0].split('=', 1)
+                        # Option validation check for sort-by parameter
                         if len(part) == 2 and part[0] == '--sort-by' and part[1] in ('date', 'author'):
                             repo.log(part[1])
                         else:
