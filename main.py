@@ -436,59 +436,6 @@ class Repository:
         self.commit(message=msg, parents=parents)
 
 
-# ==============================================================================
-# SECTION 4. BONUS UTILITIES (File Diff - LCS DP)
-# ==============================================================================
-
-def diff_command(file1, file2):
-    """
-    Compares two files line by line using standard LCS DP algorithm.
-    Displays deletions with '-', additions with '+', and identical lines with ' '.
-    """
-    if not os.path.exists(file1):
-        print(f"File not found: {file1}")
-        return
-    if not os.path.exists(file2):
-        print(f"File not found: {file2}")
-        return
-
-    try:
-        with open(file1, 'r', encoding='utf-8') as f:
-            lines1 = [line.rstrip('\r\n') for line in f]
-        with open(file2, 'r', encoding='utf-8') as f:
-            lines2 = [line.rstrip('\r\n') for line in f]
-    except Exception as e:
-        print(f"Error reading files: {e}")
-        return
-
-    m, n = len(lines1), len(lines2)
-    dp = [[0] * (n + 1) for _ in range(m + 1)]
-    for i in range(1, m + 1):
-        for j in range(1, n + 1):
-            if lines1[i-1] == lines2[j-1]:
-                dp[i][j] = dp[i-1][j-1] + 1
-            else:
-                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-
-    # Backtracking to reconstruct the diff (longest common subsequence DP matrix traversal)
-    i, j = m, n
-    diff = []
-    while i > 0 or j > 0:
-        if i > 0 and j > 0 and lines1[i-1] == lines2[j-1]:
-            diff.append(f"  {lines1[i-1]}")
-            i -= 1
-            j -= 1
-        elif j > 0 and (i == 0 or dp[i][j-1] >= dp[i-1][j]):
-            diff.append(f"+ {lines2[j-1]}")
-            j -= 1
-        else:
-            diff.append(f"- {lines1[i-1]}")
-            i -= 1
-
-    diff.reverse()
-    for line in diff:
-        print(line)
-
 
 # ==============================================================================
 # SECTION 5. INTERACTIVE CONSOLE (REPL - Main Loop)
@@ -604,11 +551,6 @@ def main():
                     else:
                         repo.search_keyword(arg)
 
-            elif cmd == "DIFF":
-                if len(args) != 2:
-                    print("Invalid args")
-                else:
-                    diff_command(args[0], args[1])
 
             elif cmd == "MERGE":
                 if len(args) != 1:
