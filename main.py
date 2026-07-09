@@ -2,10 +2,11 @@ import os
 import sys
 import shlex
 from datetime import datetime
+from collections import deque
 
-# ==========================================
-# Custom Sorting Implementation (Merge Sort)
-# ==========================================
+# ==============================================================================
+# SECTION 1. UTILS & HELPER ALGORITHMS (Merge Sort)
+# ==============================================================================
 
 def merge_sort(arr, key=lambda x: x):
     """
@@ -36,9 +37,10 @@ def merge(left, right, key):
     result.extend(right[j:])
     return result
 
-# ==========================================
-# Data Models and Core Repository Engine
-# ==========================================
+
+# ==============================================================================
+# SECTION 2. DATA MODELS (CommitNode)
+# ==============================================================================
 
 class CommitNode:
     """
@@ -55,10 +57,19 @@ class CommitNode:
         else:
             self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+
+# ==============================================================================
+# SECTION 3. CORE ENGINE (Repository)
+# ==============================================================================
+
 class Repository:
     """
     Manages the repository state, branch pointers, commit graph, and indexes.
     """
+    
+    # ---------------------------------------------------------
+    # 3-1. Engine Initialization & Hash Generator
+    # ---------------------------------------------------------
     def __init__(self):
         self.is_initialized = False
         self.current_user = None
@@ -83,6 +94,9 @@ class Repository:
         num3 = str(3 + 3 * c)
         return f"{char1}{num1}{char2}{num2}{char3}{num3}"
 
+    # ---------------------------------------------------------
+    # 3-2. Version Control Command Handlers
+    # ---------------------------------------------------------
     def init(self, user_name):
         """
         Initializes the repository with the specified user name and creates 'main' branch.
@@ -157,6 +171,9 @@ class Repository:
         print(f"[{self.head} {commit_hash}] {message}")
         return commit_hash
 
+    # ---------------------------------------------------------
+    # 3-3. Inverted Index Search Engine
+    # ---------------------------------------------------------
     def search_keyword(self, keyword):
         """
         Searches the inverted index for commits matching the keyword (case-insensitive).
@@ -183,6 +200,9 @@ class Repository:
             node = self.commits[h]
             print(f"- {h}: {node.message}")
 
+    # ---------------------------------------------------------
+    # 3-4. Graph Topology & History Traversal
+    # ---------------------------------------------------------
     def log(self, sort_by=None):
         """
         Displays all commits. Under default mode, it displays them in root-first topological order.
@@ -259,7 +279,6 @@ class Repository:
                     adj[p].add(h)
 
         # BFS to find the shortest path
-        from collections import deque
         queue = deque([[commit1]])
         visited = {commit1: 0}  # map node -> min path length to reach it
         shortest_paths = []
@@ -339,9 +358,12 @@ class Repository:
             node = self.commits[h]
             print(f"- {h}: {node.message}")
 
+    # ---------------------------------------------------------
+    # 3-5. Advanced Graph Operations (Merge Branch)
+    # ---------------------------------------------------------
     def merge_branch(self, branch_name):
         """
-        [Bonus] Merges the target branch into the current branch by creating a merge commit.
+        Merges the target branch into the current branch by creating a merge commit.
         """
         if branch_name not in self.branches:
             print(f"Unknown branch: {branch_name}")
@@ -369,9 +391,9 @@ class Repository:
         self.commit(message=msg, parents=parents)
 
 
-# ==========================================
-# Bonus Feature: Line-by-line File Diff
-# ==========================================
+# ==============================================================================
+# SECTION 4. BONUS UTILITIES (File Diff - LCS DP)
+# ==============================================================================
 
 def diff_command(file1, file2):
     """
@@ -423,9 +445,9 @@ def diff_command(file1, file2):
         print(line)
 
 
-# ==========================================
-# Main REPL loop and Command Routing
-# ==========================================
+# ==============================================================================
+# SECTION 5. INTERACTIVE CONSOLE (REPL - Main Loop)
+# ==============================================================================
 
 def main():
     repo = Repository()
