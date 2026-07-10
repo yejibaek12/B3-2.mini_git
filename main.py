@@ -438,7 +438,7 @@ class Repository:
 
 
 # ==============================================================================
-# SECTION 5. INTERACTIVE CONSOLE (REPL - Main Loop)
+# SECTION 4. INTERACTIVE CONSOLE (REPL - Main Loop)
 # ==============================================================================
 
 def main():
