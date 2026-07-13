@@ -84,16 +84,15 @@ class Repository:
         self.head = branch_name     # 활성 브랜치 포인터 전환
         print(f"Switched to branch: {branch_name}")
 
-    def commit(self, message, parents=None):
+    def commit(self, message):
         """
         새로운 커밋을 생성하고, 활성 브랜치의 최신 커밋 포인터를 업데이트하며, 역색인(Inverted Index)을 구축합니다.
         역할: self.branches 내의 활성 브랜치 끝(tip) 포인터를 앞으로 이동시키고 커밋 노드를 추가합니다.
         """
         commit_hash = self.generate_hash()
         
-        if parents is None:
-            parent_hash = self.branches[self.head]
-            parents = [parent_hash] if parent_hash else []
+        parent_hash = self.branches[self.head]
+        parents = [parent_hash] if parent_hash else []
 
         node = CommitNode(
             commit_hash=commit_hash,
@@ -217,32 +216,3 @@ class Repository:
         for h in sorted_ancestors:
             node = self.commits[h]
             print(f"- {h}: {node.message}")
-
-    def merge_branch(self, branch_name):
-        """
-        대상 브랜치를 현재 활성화된 브랜치에 병합하고 머지 커밋을 생성합니다.
-        """
-        if branch_name not in self.branches:
-            print(f"Unknown branch: {branch_name}")
-            return
-
-        parent1 = self.branches[self.head]
-        parent2 = self.branches[branch_name]
-
-        if parent1 is None:
-            self.branches[self.head] = parent2
-            print(f"Fast-forwarded {self.head} to {branch_name}")
-            return
-
-        if parent2 is None:
-            print("Target branch has no commits to merge.")
-            return
-
-        if parent1 == parent2:
-            print("Already up to date.")
-            return
-
-        # 두 개의 부모를 갖는 머지 커밋 생성 (parent1 = 현재 HEAD 끝점, parent2 = 대상 브랜치 끝점)
-        msg = f"Merge branch '{branch_name}' into {self.head}"
-        parents = [parent1, parent2]
-        self.commit(message=msg, parents=parents)

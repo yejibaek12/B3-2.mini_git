@@ -111,14 +111,6 @@ def main():
                     else:
                         repo.search_keyword(arg)
 
-            elif cmd == "MERGE":
-                if len(args) != 1:
-                    print("Invalid args")
-                elif not repo.is_initialized:
-                    print("Repository not initialized")
-                else:
-                    repo.merge_branch(args[0])
-
             else:
                 print("Invalid args")
 
