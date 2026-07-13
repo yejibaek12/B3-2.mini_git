@@ -36,7 +36,7 @@ mini-git> LOG
 mini-git> EXIT
 ```
 
-초기화 전에 다른 명령을 입력하면 `Repository not initialized`가 출력됩니다. 전체 명령어 규격은 [§3. 명령어 규격 및 레퍼런스](#3-명령어-규격-및-레퍼런스)를 참고하세요.
+초기화 전에 다른 명령을 입력하면 `Repository not initialized`가 출력됩니다. 전체 명령어는 [§3. 명령어 레퍼런스](#3-명령어-레퍼런스)를 참고하세요.
 
 ---
 
@@ -54,137 +54,88 @@ mini-git> EXIT
 
 ---
 
-## 3. 명령어 규격 및 레퍼런스
+## 3. 명령어 레퍼런스
 
-### 명령어 입력 표준 규칙
-* **대소문자 구분 없음**: 명령어 키워드는 대소문자를 구분하지 않습니다 (예: `INIT`와 `init` 동일하게 동작).
-* **공백 포함 인수**: 공백이 포함된 문자열 인수(사용자명/커밋 메시지/검색 키워드)는 반드시 큰따옴표로 감싸서 입력해야 합니다 (예: `COMMIT "Add login feature"`).
-* **에러 메시지 규격**:
-  * 인수 누락 또는 옵션 형식 오류: `Invalid args`
-  * 존재하지 않는 브랜치 대상 요청: `Unknown branch: <name>`
-  * 존재하지 않는 커밋 해시 대상 요청: `Unknown commit: <hash>`
-  * 저장소 미초기화 상태에서 명령어 입력: `Repository not initialized`
+### 입력 규칙
+* 명령어는 대소문자를 구분하지 않습니다 (`INIT` = `init`).
+* 공백이 있는 인수는 큰따옴표로 감쌉니다 (`COMMIT "Add login feature"`).
 
-### 명령어 상세 레퍼런스
+### 주요 에러 메시지
+| 상황 | 메시지 |
+|------|--------|
+| 인수·옵션 오류 | `Invalid args` |
+| 미초기화 상태 | `Repository not initialized` |
+| 없는 브랜치 | `Unknown branch: <name>` |
+| 없는 커밋 | `Unknown commit: <hash>` |
+| 브랜치 중복 | `Branch already exists: <name>` |
 
-#### 저장소 및 브랜치 제어
-* `INIT <user_name>`
-  * 저장소를 초기화합니다. 기본 브랜치인 `main`을 생성하여 활성 브랜치(`HEAD`)로 삼고 작성자를 `<user_name>`으로 고정합니다.
-  * **재초기화 시 유의사항**: 이미 초기화된 상태에서 `INIT`을 다시 호출하면, 기존 메모리에 적재된 커밋 그래프, 브랜치 목록, 역색인 및 해시 카운터 데이터가 전부 유실(포맷)되고 새 저장소로 완전히 재시작됩니다.
+### 명령어
 
-* `BRANCH <branch_name>`
-  * 현재 활성 커밋(`HEAD`) 위치에 지정한 이름의 새 브랜치 포인터를 생성합니다.
-  * **브랜치 중복 생성 오류**: 이미 존재하는 이름으로 브랜치를 중복 생성하려고 시도할 경우, 생성 작업을 거부하고 `Branch already exists: <branch_name>`을 출력합니다.
-
-* `SWITCH <branch_name>`
-  * 활성 브랜치(`HEAD`)를 지정한 이름의 브랜치로 전환합니다.
-
-* `COMMIT <message>`
-  * 현재 `HEAD` 커밋을 부모 노드로 삼는 새 커밋 객체를 기록하고 소속 브랜치의 팁 포인터를 새 커밋 해시값으로 업데이트합니다.
-  * 작성자 및 메시지 단어에 대한 역색인도 즉시 업데이트합니다.
-
-#### 로그 및 그래프 분석
-* `LOG`
-  * 위상 정렬 순서(부모 커밋이 자식 커밋보다 앞서서 출력되는 형태)에 맞게 전체 커밋 로그를 보여줍니다.
-  * **결정적 위상 정렬 규칙**: 다중 브랜치로 인해 큐에 동시에 들어오는 동일 수준(동일 타임스탬프)의 커밋 노드들은 커밋 해시의 알파벳 사전순으로 오름차순 정렬하여 출력함으로써 항상 동일한 실행 결과를 보장합니다.
-
-* `LOG --sort-by=date|author`
-  * 지정한 기준대로 전체 커밋 로그를 정렬하여 보여줍니다.
-    * `date`: 타임스탬프 시간 순으로 정렬합니다.
-    * `author`: 작성자 사전순으로 정렬합니다.
-  * **유효성 검사**: `--sort-by` 뒤에 잘못된 파라미터가 입력될 경우 `Invalid args`를 출력합니다.
-
-* `PATH <commit1> <commit2>`
-  * 두 커밋을 연결하는 최단 경로(최소 간선 수)를 탐색합니다. (무방향 그래프 간선 간주)
-  * 경로가 아예 없는 경우 `No path`를 출력합니다.
-  * **결정적 동률 경로 처리**: 여러 개의 최단 경로가 요건을 충족한다면, 경로 전체를 화살표(` -> `)로 연결한 전체 경로 문자열을 사전순으로 비교하여 가장 앞에 위치하는 경로를 최종 선택합니다.
-    * *예시*: 최단 경로로 `a1 -> b1 -> c1`과 `a1 -> b2 -> c1`이 동률로 존재할 때, 문자열 비교 시 `'a1 -> b1 -> c1'`이 `'a1 -> b2 -> c1'`보다 사전순으로 앞서므로 `Path: a1 -> b1 -> c1`을 출력합니다.
-
-* `ANCESTORS <commit_hash>`
-  * 지정한 커밋에서 도달 가능한 모든 조상 커밋들을 빠짐없이 추적하여 출력합니다.
-  * **정렬 규칙**: 수집된 조상 목록은 타임스탬프 시간 순(오름차순) 및 해시 사전순으로 정렬하여 일관되게 출력합니다. 조상이 없는 경우 `Ancestors: None`을 출력합니다.
-
-#### 인메모리 검색 및 기타 제어
-* `SEARCH <keyword>`
-  * 메시지에 키워드가 포함된 커밋들을 역색인을 이용하여 고속 검색 후 출력합니다. (대소문자 무시 단어 기준)
-
-* `SEARCH --author=<name>`
-  * 해당 저자가 생성한 커밋 목록을 역색인을 이용해 고속 검색 후 출력합니다.
+| 명령어 | 설명 |
+|--------|------|
+| `INIT <user_name>` | 저장소 초기화. `main` 브랜치·작성자 설정. 재실행 시 기존 데이터 초기화 |
+| `BRANCH <name>` | 현재 HEAD 위치에 새 브랜치 생성 |
+| `SWITCH <name>` | 활성 브랜치 전환 |
+| `COMMIT <message>` | 현재 HEAD를 부모로 새 커밋 생성. 역색인 갱신 |
+| `LOG` | 부모가 자식보다 먼저 나오는 위상 정렬 순서로 출력 |
+| `LOG --sort-by=date\|author` | 날짜 또는 작성자 기준 정렬 출력 |
+| `PATH <c1> <c2>` | 두 커밋 간 최단 경로 (무방향). 없으면 `No path` |
+| `ANCESTORS <hash>` | 조상 커밋 전체 출력. 없으면 `Ancestors: None` |
+| `SEARCH <keyword>` | 메시지 키워드 검색 (대소문자 무시, 단어 단위) |
+| `SEARCH --author=<name>` | 작성자별 커밋 검색 |
+| `EXIT` / `QUIT` | 프로그램 종료 |
 
 ---
 
-## 4. 프로젝트 구조 및 주요 기능/기술 명세
+## 4. 프로젝트 구조
 
-이 프로젝트는 유지보수성과 확장성을 높이기 위해 역할에 따라 소스 코드를 다음과 같이 모듈화하여 분리해 두었습니다.
-
-### 파일 디렉터리 구조 (Directory Structure)
-```plaintext
-B3-2.mini_git/
-│
-├── main.py                 # 프로그램 진입점 (REPL 실행 콘솔 루프만 담당)
-├── models.py               # 데이터 모델 (CommitNode 클래스)
-├── repository.py           # Git 저장소 엔진 (Core Engine & Command Handlers)
+```
+B3-2/
+├── main.py          # REPL 진입점, 명령 파싱·라우팅
+├── models.py        # CommitNode (커밋 DAG 노드)
+├── repository.py    # 저장소 상태, 명령 처리, 역색인
 └── utils/
-    ├── __init__.py         # 패키지 마커 파일
-    ├── sorting.py          # 직접 구현한 merge_sort 알고리즘
-    └── graph.py            # BFS, 위상 정렬 등 그래프 탐색 알고리즘
+    ├── __init__.py  # 패키지 마커
+    ├── sorting.py   # merge_sort (직접 구현)
+    └── graph.py     # 위상 정렬, BFS, DFS
 ```
 
-### 모듈별 역할 및 파일 설명
-1. **[main.py](file:///c:/Users/byjyj/Desktop/Codyssey/B3-2/main.py)**: `shlex`를 이용한 명령어 파싱, `while True` 콘솔 루프만 담당하며 프로그램의 진입점 역할을 합니다.
-2. **[models.py](file:///c:/Users/byjyj/Desktop/Codyssey/B3-2/models.py)**: 버전 관리 그래프의 개별 노드를 정의하는 `CommitNode` 클래스를 담고 있습니다. 순환 참조를 방지하고 핵심 자료구조를 깔끔하게 유지합니다.
-3. **[repository.py](file:///c:/Users/byjyj/Desktop/Codyssey/B3-2/repository.py)**: [Repository](./repository.py) 클래스 및 핵심 저장소 상태와 명령어 핸들러를 정의합니다. 상태 변수(`is_initialized`, `current_user`, `commits`, `branches`, `head`, `keyword_index`, `author_index`) 및 역색인 업데이트 등의 핵심 제어 로직을 관리합니다.
-4. **[utils/sorting.py](file:///c:/Users/byjyj/Desktop/Codyssey/B3-2/utils/sorting.py)**: 파이썬 내장 API 없이 정렬을 처리할 수 있도록 직접 구현한 Stable `O(N log N)` 병합 정렬([merge_sort](./utils/sorting.py#L1-L26)) 알고리즘 모듈입니다.
-5. **[utils/graph.py](file:///c:/Users/byjyj/Desktop/Codyssey/B3-2/utils/graph.py)**: 인접 리스트 생성([build_adjacency_list](./utils/graph.py#L4-L22)), Kahn 알고리즘 기반 위상 정렬([topological_sort](./utils/graph.py#L25-L55)), BFS 기반 최단 경로 탐색([find_shortest_path](./utils/graph.py#L58-L111)), DFS 기반 조상 추적([find_ancestors](./utils/graph.py#L114-L147)) 등 그래프 분석 및 탐색 로직만을 따로 모아놓은 순수 알고리즘 모듈입니다.
+**실행 흐름:** 사용자 입력 → `main.py`(파싱) → `repository.py`(명령 처리) → 필요 시 `utils/`(정렬·그래프 알고리즘). 커밋 데이터 형태는 `models.py`의 `CommitNode`로 표현합니다.
+
+### 파일별 설명
+
+**[main.py](./main.py)** — 콘솔 입출력·명령 분기
+- `python main.py` 실행 시 가장 먼저 돌아가는 진입점입니다.
+- `mini-git>` 프롬프트에서 한 줄씩 입력을 받고, `shlex`로 `COMMIT "hello world"`처럼 따옴표·공백을 올바르게 나눕니다.
+- 인수 개수가 맞는지, 알려진 명령인지만 확인한 뒤 `repo.commit(...)`처럼 `Repository` 메서드를 호출합니다. 커밋 생성·브랜치·검색 같은 Git 동작 자체는 이 파일에 없습니다.
+
+**[models.py](./models.py)** — 커밋 한 건의 데이터 모양
+- `CommitNode` 클래스 하나만 정의합니다. 커밋이 가져야 할 필드(해시, 메시지, 작성자, 시각, 부모 목록 등)를 담는 그릇입니다.
+- `parents`에 이전 커밋 해시를 넣어 커밋끼리 화살표로 이어지는 DAG(분기 가능한 이력 그래프)를 만듭니다.
+- 저장소 상태를 바꾸거나 명령을 처리하지 않습니다.
+
+**[repository.py](./repository.py)** — Mini Git의 핵심 엔진
+- 메모리 안의 가짜 Git 저장소 전체를 `Repository` 클래스 하나로 관리합니다.
+- `commits`(해시 → 커밋 객체), `branches`(브랜치명 → 그 브랜치 최신 커밋), `head`(지금 작업 중인 브랜치), 키워드·작성자 역색인 등을 들고 있습니다.
+- §3의 `INIT`, `COMMIT`, `LOG`, `SEARCH`, `PATH` 등 대부분의 명령이 결국 이 파일의 메서드를 실행합니다.
+
+**[utils/__init__.py](./utils/__init__.py)** — `utils` 패키지 선언
+- 내용은 비어 있지만, Python이 `utils` 폴더를 패키지로 인식하게 해 `from utils.graph import ...` import가 가능해집니다.
+
+**[utils/sorting.py](./utils/sorting.py)** — 직접 구현한 정렬
+- 과제 제약으로 `sorted()`, `list.sort()`를 쓸 수 없어 `merge_sort`를 직접 구현했습니다.
+- `LOG --sort-by=date|author`로 날짜·작성자순 출력할 때, `ANCESTORS` 결과를 시간순으로 맞출 때 등 `repository.py`에서 호출합니다.
+
+**[utils/graph.py](./utils/graph.py)** — 커밋 그래프 탐색 알고리즘
+- 커밋 관계를 그래프로 보고 돌리는 함수만 모아 둔 모듈입니다. 저장소 상태는 다루지 않습니다.
+- `topological_sort` → `LOG`(부모가 자식보다 먼저 나오게), `find_shortest_path` → `PATH`(BFS 최단 경로), `find_ancestors` → `ANCESTORS`(조상 추적)에 쓰입니다.
 
 ---
 
-### 핵심 요구사항 및 소스 코드 매핑
+## 5. 확장 시 고려사항 (참고)
 
-| 요구사항 (Requirement) | 관련 소스 코드 (Source File) | 핵심 구현 내용 및 설명 (Description) |
-| :--- | :--- | :--- |
-| **정렬 알고리즘 직접 구현** | [utils/sorting.py](./utils/sorting.py) | - 내장 정렬 API 사용 금지 제약에 따라 Stable 병합 정렬 ([merge_sort](./utils/sorting.py#L1-L26)) 직접 구현<br>- 정렬 시점에 다중 조건 키 함수 동적 주입 가능 |
-| **커밋 그래프 자료구조** | [models.py](./models.py) | - `CommitNode` 클래스 정의 (최소 필드: `hash`, `message`, `author`, `timestamp`, `parents`)<br>- 부모 포인터를 통한 DAG 분기 구조 표현 |
-| **고유 해시 및 고속 탐색** | [repository.py](./repository.py) | - 단조 증가 카운터 기반 유일한 커밋 해시 생성<br>- 해시맵 구조 기반 $O(1)$ 탐색 속도 보장 |
-| **공통 그래프 빌더** | [utils/graph.py](./utils/graph.py) | - [build_adjacency_list](./utils/graph.py#L4-L22) 공통 모듈화로 탐색 중복 최소화 |
-| **저장소 및 상태 제어** | [repository.py](./repository.py) | - 저장소 초기화 (`INIT`), 브랜치 생성 (`BRANCH`), 브랜치 전환 (`SWITCH`), 커밋 생성 (`COMMIT`) 로직 처리 |
-| **역색인 기반 고속 검색** | [repository.py](./repository.py) | - 메시지 단어 기준 Keyword 인덱스 및 Author 인덱스 등 2종 인덱스 실시간 구축 및 $O(1)$ 조회 |
-| **위상 정렬 기반 로그** | [utils/graph.py](./utils/graph.py) | - Kahn 알고리즘 기반 위상 정렬 순서로 `LOG` 출력<br>- 동일 수준 노드들에 대해 해시 사전순 오름차순의 결정적 정렬 보장 |
-| **최단 경로 탐색** | [utils/graph.py](./utils/graph.py) | - 무방향 간선 모델 기준 BFS 최단 경로(`PATH`) 탐색 및 사전순 타이 브레이크 처리 |
-| **조상 추적** | [utils/graph.py](./utils/graph.py) | - DFS 기반 특정 커밋의 모든 조상(`ANCESTORS`) 역추적 및 타임스탬프/해시 정렬 출력 |
+본 과제는 인메모리 시뮬레이션이므로 커밋 수가 크게 늘면 아래 지점에서 병목이 생길 수 있습니다.
 
----
-
-### 핵심 설계 의도 및 기술적 고려사항
-
-#### 1. 커밋 그래프의 DAG 지향성 (이력 불변성 및 사이클 차단)
-* **DAG(Directed Acyclic Graph)의 역할**: Git의 이력은 시간 인과관계(선후 관계)를 가집니다. 새로운 커밋은 과거의 상태를 부모로만 가질 수 있고 역방향으로 부모가 자식을 가리키는 순환 참조(Cycle)가 일어날 수 없기 때문에, 커밋 그래프는 반드시 **방향성 비순환 그래프(DAG)** 형태를 띱니다.
-* **이력 불변성(Immutability)**: 만약 그래프에 순환(Cycle)이 생긴다면 알고리즘이 무한 루프에 빠지거나 히스토리가 덮어쓰여져 Git의 핵심인 이력 불변성이 훼손됩니다. 따라서 커밋 생성 시점(`COMMIT`)에 단방향 간선(`parents`) 구조를 명확히 설계하여 이력의 안전성을 보장합니다.
-
-#### 2. 테스트 재현성을 위한 순차 해시 (Counter Hash)와 대용량 확장 대안
-* **순차 해시의 장점**: 본 프로젝트에서는 테스트 결과를 항상 동일하게 유지하고 사람이 읽기 쉽도록(Readable) 단조 증가하는 순차 카운터 기반 해시(예: `1`, `2`, `3`)를 생성하여 재현성(Deterministic behavior)을 보장합니다.
-* **대용량/프로덕션 환경으로의 대안**: 이러한 카운터 방식은 분산 협업 환경이나 대규모 서비스에서는 해시 충돌(Hash Collision)을 야기합니다. 따라서 실제 프로덕션 환경으로 전환할 때는 SHA-1 또는 SHA-256과 같은 암호학적 해시 알고리즘을 도입하고, 혹시 모를 해시 충돌 시 재시도 메커니즘을 적용하거나 분산 고유 ID 생성 알고리즘(예: Snowflake)을 사용하는 것이 바람직합니다.
-
----
-
-## 5. 대용량 규모 확장 시 병목 분석 및 개선 방안
-
-데이터가 수백만 건 이상으로 급증할 때 발생 가능한 병목 현상과 개선 방안입니다.
-
-### 1. 인메모리 데이터 적재 및 역색인 메모리 병목
-* **병목**: 모든 커밋 노드와 역색인을 단일 프로세스의 인메모리(Dictionary)로 관리하여 메모리 사용량 급증.
-* **개선**:
-  * RocksDB, SQLite 등 경량 임베디드 DB 도입 및 최신 커밋 대상 **LRU 캐싱(Hot/Cold 분리)** 적용.
-  * Redis 등 분산 인메모리 저장소 혹은 Elasticsearch 등 전문 검색 엔진으로 색인 분산.
-
-### 2. 최단 경로 탐색(PATH) 시 BFS 성능 저하
-* **병목**: 거대 그래프에서 BFS 탐색 시 방문 노드 관리용 메모리가 늘어나고, 완전 탐색에 가까운 시간 소요.
-* **개선**:
-  * 양방향에서 동시 탐색하는 **양방향 BFS (Bidirectional BFS)** 도입 (상태 공간 $O(b^d) \rightarrow O(b^{d/2})$로 축소).
-  * 단선 구조 커밋들을 요약한 가상 간선 정의 또는 중요 노드 중심의 **그래프 축약(Graph Contraction)** 기법 적용.
-
-### 3. 전체 커밋 로그(LOG) 위상 정렬 비용
-* **병목**: 로그 호출 시마다 전체 그래프에 Kahn 위상 정렬을 매번 적용하여 실시간 출력 속도 저하.
-* **개선**:
-  * 전체 정렬 대신 필요한 부분만 로드하는 **Lazy 로딩 및 페이지네이션** 구현.
-  * 커밋 추가 시 영향받는 서브그래프 차수만 갱신하는 **증분 위상 정렬 (Incremental Topological Sort)** 도입.
+* **역색인·커밋 저장**: 전체를 메모리 dict로 유지 → SQLite/RocksDB 등 영속 저장소 검토
+* **PATH (BFS)**: 그래프가 커지면 탐색 비용 증가 → 양방향 BFS 등으로 완화 가능
+* **LOG (위상 정렬)**: 호출마다 전체 그래프 정렬 → 페이지네이션, 증분 갱신 검토
